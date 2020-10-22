@@ -5,11 +5,10 @@ declare(strict_types=1);
  * This file is part of Hyperf.
  *
  * @link     https://www.hyperf.io
- * @document https://doc.hyperf.io
+ * @document https://hyperf.wiki
  * @contact  group@hyperf.io
- * @license  https://github.com/hyperf-cloud/hyperf/blob/master/LICENSE
+ * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
  */
-
 namespace HyperfTest\Redis;
 
 use Hyperf\Config\Config;
@@ -34,11 +33,10 @@ class RedisProxyTest extends TestCase
 {
     protected function tearDown()
     {
-        Mockery::close();
-
         $redis = $this->getRedis();
-        $redis->del('test');
-        $redis->del('test:test');
+        $redis->flushDB();
+
+        Mockery::close();
     }
 
     public function testRedisOptionPrefix()
@@ -65,6 +63,46 @@ class RedisProxyTest extends TestCase
         $this->assertSame('s:3:"yyy";', $this->getRedis()->get('test'));
     }
 
+    public function testRedisScan()
+    {
+        $redis = $this->getRedis();
+        $origin = ['scan:1', 'scan:2', 'scan:3', 'scan:4'];
+        foreach ($origin as $value) {
+            $redis->set($value, '1');
+        }
+
+        $it = null;
+        $result = [];
+        while (false !== $res = $redis->scan($it, 'scan:*', 2)) {
+            $result = array_merge($result, $res);
+        }
+
+        sort($result);
+
+        $this->assertEquals($origin, $result);
+        $this->assertSame(0, $it);
+    }
+
+    public function testRedisHScan()
+    {
+        $redis = $this->getRedis();
+        $origin = ['scan:1', 'scan:2', 'scan:3', 'scan:4'];
+        foreach ($origin as $value) {
+            $redis->hSet('scaner', $value, '1');
+        }
+
+        $it = null;
+        $result = [];
+        while (false !== $res = $redis->hScan('scaner', $it, 'scan:*', 2)) {
+            $result = array_merge($result, array_keys($res));
+        }
+
+        sort($result);
+
+        $this->assertEquals($origin, $result);
+        $this->assertSame(0, $it);
+    }
+
     /**
      * @param mixed $optinos
      * @return \Redis
@@ -75,7 +113,7 @@ class RedisProxyTest extends TestCase
         $container->shouldReceive('get')->once()->with(ConfigInterface::class)->andReturn(new Config([
             'redis' => [
                 'default' => [
-                    'host' => 'localhost',
+                    'host' => '127.0.0.1',
                     'auth' => null,
                     'port' => 6379,
                     'db' => 0,
